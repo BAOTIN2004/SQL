@@ -80,27 +80,53 @@ where KhachHang.MaNhomKH=(select KhachHang.MaNhomKH from KhachHang
 where KhachHang.TenKhachHang Like N'Nguyễn Thanh Bình')
 
 --5.21
-SELECT TOP 1 LoaiHang.TenLoaiHang, COUNT(MatHang.MaLoaiHang) AS so_luong
+SELECT  LoaiHang.TenLoaiHang, COUNT(MatHang.MaLoaiHang) AS so_luong
 FROM MatHang 
 JOIN LoaiHang ON LoaiHang.MaLoaiHang = MatHang.MaLoaiHang
-GROUP BY LoaiHang.TenLoaiHang
-ORDER BY so_luong DESC;
+GROUP BY LoaiHang.TenLoaiHang,MatHang.MaLoaiHang
+ORDER BY so_luong DESC
+
 
 --5.22
-SELECT TOP 1 MatHang.MaNhaSX,NhaSanXuat.TenNhaSX ,COUNT(MatHang.MaNhaSX) AS so_luong
+SELECT MatHang.MaNhaSX,NhaSanXuat.TenNhaSX ,COUNT(MatHang.MaNhaSX) AS so_luong
 FROM MatHang 
-JOIN NhaSanXuat ON NhaSanXuat.MaNhaSX = MatHang.MaNhaSX
+LEFT JOIN NhaSanXuat ON NhaSanXuat.MaNhaSX = MatHang.MaNhaSX
 GROUP BY MatHang.MaNhaSX,NhaSanXuat.TenNhaSX
-ORDER BY so_luong DESC;
+having count(mathang.manhasx) >= ALL(
+	select count(MatHang.MaNhaSX)
+	from MatHang
+	group by MatHang.MANHASX)
 
 --5.23
-select top 1 TinhThanh.MaTinh,TinhThanh.TenTinh,count(Khachhang.MaTinh) as so_luong
+select top 1 WITH TIES TinhThanh.MaTinh,TinhThanh.TenTinh,count(Khachhang.MaTinh) as so_luong
 from KhachHang
 join TinhThanh on KhachHang.MaTinh=TinhThanh.MaTinh
 group by TinhThanh.MaTinh,TinhThanh.TenTinh
 order by so_luong desc;
 
+
+SELECT TINHTHANH.MaTinh,TINHTHANH.TenTinh ,COUNT(KhachHang.MaTinh) AS so_luong
+FROM KhachHang
+LEFT JOIN TinhThanh ON KhachHang.MaTinh = TinhThanh.MaTinh
+GROUP BY TINHTHANH.MaTinh,TINHTHANH.TenTinh
+having count(KhachHang.MaTinh) >= ALL(
+	select count(KhachHang.MaTinh)
+	from KhachHang
+	group by KhachHang.MaTinh)
+
 --5.24
+select MatHang.MaHang, MatHang.TenHang,
+sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as doanh_thu
+from MatHang
+join ChiTietChungTu on MatHang.MaHang=ChiTietChungTu.MaHang
+group by MatHang.MaHang,MatHang.TenHang
+having sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia)>=all(
+		select MatHang.MaHang, MatHang.TenHang,
+sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as doanh_thu
+from MatHang
+join ChiTietChungTu on MatHang.MaHang=ChiTietChungTu.MaHang
+group by MatHang.MaHang,MatHang.TenHang)
+
 select top 1 MatHang.MaLoaiHang,LoaiHang.TenLoaiHang,
 sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as doanh_thu
 from MatHang
@@ -111,46 +137,242 @@ order by doanh_thu desc;
 
 
 --5.25.1
-SELECT MaHang,
-       SUM(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) AS TongDoanhThu,
-       (SELECT AVG(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) FROM ChiTietChungTu) AS DoanhThuTrungBinhTatCa
-FROM ChiTietChungTu
-GROUP BY MaHang
-HAVING SUM(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) >
-(SELECT AVG(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) FROM ChiTietChungTu);
+select MatHang.MaHang,MatHang.TenHang, sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as TongDoanhThu
+from MatHang
+join ChiTietChungTu on MatHang.MaHang=ChiTietChungTu.MaHang
+group by  MatHang.MaHang,MatHang.TenHang
+having sum(cast(ChiTietChungTu.SoLuong as bigint) *cast(ChiTietChungTu.DonGia as bigint) )>
+	(
+	select avg(TongDoanhThu.Tong)
+	from 
+	( select MatHang.MaHang,MatHang.TenHang, sum(cast(ChiTietChungTu.SoLuong as bigint)*cast(ChiTietChungTu.DonGia as bigint)) as Tong
+		from MatHang
+	join ChiTietChungTu on MatHang.MaHang=ChiTietChungTu.MaHang
+	group by  MatHang.MaHang,MatHang.TenHang )as TongDoanhThu)
 
 --5.25.2
 select MatHang.MaLoaiHang,LoaiHang.TenLoaiHang,
-SUM(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) AS TongDoanhThu,
-       (SELECT AVG(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) FROM ChiTietChungTu) AS DoanhThuTrungBinhTatCa
+SUM(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) AS DoanhThuLoaiHang
 from MatHang
 join LoaiHang on MatHang.MaLoaiHang=LoaiHang.MaLoaiHang
 join ChiTietChungTu on MatHang.MaHang=ChiTietChungTu.MaHang
 group by MatHang.MaLoaiHang,LoaiHang.TenLoaiHang
+having SUM(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) >(
+	select avg(TongDoanhThu.Tong)
+	from (
+		select MatHang.MaLoaiHang,LoaiHang.TenLoaiHang,
+			SUM(CAST(SoLuong AS decimal) * CAST(DonGia AS decimal)) AS Tong
+	from MatHang
+	join LoaiHang on MatHang.MaLoaiHang=LoaiHang.MaLoaiHang
+	join ChiTietChungTu on MatHang.MaHang=ChiTietChungTu.MaHang
+	group by MatHang.MaLoaiHang,LoaiHang.TenLoaiHang
+		) as TongDoanhThu)
 
 --5.26
-select top 1 KhachHang.MaKhachHang, KhachHang.TenKhachHang,
-sum(PhieuThuTien.SoTien) as 'Tien da chi'
-from KhachHang
-join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
-join PhieuThuTien on ChungTuBanHang.SoChungTu=PhieuThuTien.SoChungTu
-group by KhachHang.MaKhachHang,KhachHang.TenKhachHang
-
---5.27
-select top 1 KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChiTietChungTu.DonGia,
-ChiTietChungTu.SoLuong,
-(ChiTietChungTu.DonGia*ChiTietChungTu.SoLuong) as gia_tri_don_hang
+--C1
+select KhachHang.MaKhachHang,KhachHang.TenKhachHang,sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as TongChi
 from KhachHang
 join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
 join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
-where year(ChungTuBanHang.NgayLapChungTu)=2010
-group by KhachHang.MaKhachHang,KhachHang.TenKhachHang, 
-ChiTietChungTu.DonGia, ChiTietChungTu.SoLuong
-order by gia_tri_don_hang desc;
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang
+having sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia)=(
+	select max(TongChi.TongChi)
+	from (select KhachHang.MaKhachHang,KhachHang.TenKhachHang,sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as TongChi
+	from KhachHang
+	join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+	join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+	group by KhachHang.MaKhachHang,KhachHang.TenKhachHang )as TongChi)
+--C2
+select top 1 with ties  KhachHang.MaKhachHang, KhachHang.TenKhachHang,
+sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as TongChi
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang
+order by sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) desc
+
+--5.27
+--c1
+select  MaKhachHang,TenKhachHang,SoChungTu,sum(DonGia*SoLuong) as GiaTriDonHang
+from (select KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu,
+ChiTietChungTu.SoLuong,
+sum(ChiTietChungTu.DonGia*ChiTietChungTu.SoLuong) as gia_tri_don_hang
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+where year(ChungTuBanHang.NgayLapChungTu)=2010 and KhachHang.MaKhachHang is not null
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,
+ChiTietChungTu.SoLuong,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu) as Tong
+group by MaKhachHang,TenKhachHang,SoChungTu
+having sum(DonGia*SoLuong)=( select max(T.GiaTriDonHang) 
+from (select  MaKhachHang,TenKhachHang,SoChungTu,sum(DonGia*SoLuong) as GiaTriDonHang
+from (select KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu,
+ChiTietChungTu.SoLuong,
+sum(ChiTietChungTu.DonGia*ChiTietChungTu.SoLuong) as gia_tri_don_hang
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+where year(ChungTuBanHang.NgayLapChungTu)=2010 and KhachHang.MaKhachHang is not null
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,
+ChiTietChungTu.SoLuong,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu) as Tong
+group by MaKhachHang,TenKhachHang,SoChungTu) as T )
+
+--c2
+select Top 1 with ties MaKhachHang,TenKhachHang,SoChungTu,sum(DonGia*SoLuong) as GiaTriDonHang
+from (select KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu,
+ChiTietChungTu.SoLuong,
+sum(ChiTietChungTu.DonGia*ChiTietChungTu.SoLuong) as gia_tri_don_hang
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+where year(ChungTuBanHang.NgayLapChungTu)=2010 and KhachHang.MaKhachHang is not null
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,
+ChiTietChungTu.SoLuong,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu) as Tong
+group by MaKhachHang,TenKhachHang,SoChungTu
+order by sum(DonGia*SoLuong) desc
+
+
+
+---------
+select Top 1 with ties MaKhachHang,TenKhachHang,SoChungTu,sum(DonGia*SoLuong) as GiaTriDonHang
+from (select KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu,
+ChiTietChungTu.SoLuong,
+sum(ChiTietChungTu.DonGia*ChiTietChungTu.SoLuong) as gia_tri_don_hang
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+where year(ChungTuBanHang.NgayLapChungTu)=2010 and KhachHang.MaKhachHang is not null
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,
+ChiTietChungTu.SoLuong,ChiTietChungTu.DonGia,ChiTietChungTu.SoChungTu) as Tong
+group by MaKhachHang,TenKhachHang,SoChungTu
+order by sum(DonGia*SoLuong) desc
 
 --5.28
+--c1
+select  KhachHang.MaKhachHang,KhachHang.TenKhachHang,sum(PhieuThuTien.SoTien) AS TienDaNhan,
+	ChungTuBanHang.SoChungTu
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join PhieuThuTien on ChungTuBanHang.SoChungTu=PhieuThuTien.SoChungTu
+where PhieuThuTien.LyDo like N'Thu tiền mua hàng'
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChungTuBanHang.SoChungTu
+having sum(PhieuThuTien.SoTien)>=all(
+	select TienDaNhan.Tien
+	from (
+	 select KhachHang.MaKhachHang,KhachHang.TenKhachHang,sum(PhieuThuTien.SoTien) AS Tien,
+	ChungTuBanHang.SoChungTu
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join PhieuThuTien on ChungTuBanHang.SoChungTu=PhieuThuTien.SoChungTu
+where PhieuThuTien.LyDo like N'Thu tiền mua hàng'
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChungTuBanHang.SoChungTu
+) as TienDaNhan);
+
+--c2
+select top 1 with ties KhachHang.MaKhachHang,KhachHang.TenKhachHang,sum(PhieuThuTien.SoTien) AS TienDaNhan,
+	ChungTuBanHang.SoChungTu
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join PhieuThuTien on ChungTuBanHang.SoChungTu=PhieuThuTien.SoChungTu
+where PhieuThuTien.LyDo like N'Thu tiền mua hàng'
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChungTuBanHang.SoChungTu
+order by sum(PhieuThuTien.SoTien) desc;
+
+--5.29
+
+SELECT 
+    CTBH.SoChungTu,
+	CTBH.MaKhachHang,
+	CTBH.TenKhachHang,
+    CTBH.TongHoaDon AS TongTienCanThu,
+    COALESCE(PTT.TongDaThu, 0) AS TongDaThu,
+    (CTBH.TongHoaDon - COALESCE(PTT.TongDaThu, 0)) AS ConLai
+FROM (
+    -- Tính tổng tiền cần thu
+    SELECT 
+        CTBH.SoChungTu,
+		KH.MaKhachHang,
+		KH.TenKhachHang,
+        SUM(CTCT.SoLuong * CTCT.DonGia) AS TongHoaDon
+    FROM ChungTuBanHang CTBH
+    JOIN ChiTietChungTu CTCT ON CTBH.SoChungTu = CTCT.SoChungTu
+	JOIN KhachHang KH on CTBH.MaKhachHang=KH.MaKhachHang
+    GROUP BY CTBH.SoChungTu,KH.MaKhachHang,Kh.TenKhachHang
+) AS CTBH
+LEFT JOIN (
+    -- Tính tổng tiền đã thanh toán
+    SELECT 
+        PTT.SoChungTu,
+        SUM(PTT.SoTien) AS TongDaThu
+    FROM PhieuThuTien PTT
+    WHERE PTT.LyDo LIKE N'Thu tiền mua hàng'
+    GROUP BY PTT.SoChungTu
+) AS PTT ON CTBH.SoChungTu = PTT.SoChungTu
+WHERE (CTBH.TongHoaDon - COALESCE(PTT.TongDaThu, 0)) > 0
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+select * from bh
+	(select  ChungTuBanHang.SoChungTu,KhachHang.MaKhachHang,KhachHang.TenKhachHang,
+sum(PhieuThuTien.SoTien) AS TienDaNhan
+
+from KhachHang
+join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
+join PhieuThuTien on ChungTuBanHang.SoChungTu=PhieuThuTien.SoChungTu
+join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+where PhieuThuTien.LyDo like N'Thu tiền mua hàng'
+group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChungTuBanHang.SoChungTu) as bh) 
+
+select TongTienCanThu.SoChungTu,TongTienCanThu.TongThu, DaThu.TongDaThu
+	from (
+--Tong tien da thu theo so chung tu
+		SELECT 
+			PhieuThuTien.SoChungTu,
+			sum(PhieuThuTien.SoTien) as TongDaThu
+		from PhieuThuTien
+		WHERE 
+			PhieuThuTien.LyDo LIKE N'Thu tiền mua hàng'
+		GROUP BY 
+		   PhieuThuTien.SoChungTu) as DaThu)
+
+from (
+--TongTienCanThu
+(select ChungTuBanHang.SoChungTu,sum(ChiTietChungTu.SoLuong*ChiTietChungTu.DonGia) as TongThu
+from ChungTuBanHang
+join ChiTietChungTu on ChungTuBanHang.SoChungTu=ChiTietChungTu.SoChungTu
+group by ChungTuBanHang.SoChungTu ) as TongTienCanThu
+
+
+select DaThu.TongDaThu
+from (
+--Tong tien da thu theo so chung tu
+SELECT 
+    PhieuThuTien.SoChungTu,
+
+	sum(PhieuThuTien.SoTien) as TongDaThu
+	
+from PhieuThuTien
+WHERE 
+    PhieuThuTien.LyDo LIKE N'Thu tiền mua hàng'
+GROUP BY 
+   PhieuThuTien.SoChungTu) as DaThu
+
+
+
+
+
+;
