@@ -269,7 +269,7 @@ group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChungTuBanHang.SoChungTu
 ) as TienDaNhan);
 
 --c2
-select top 1 with ties KhachHang.MaKhachHang,KhachHang.TenKhachHang,sum(PhieuThuTien.SoTien) AS TienDaNhan,
+select top 1 with ties KhachHang.MaKhachHang,KhachHang.TenKhachHang,sum(PhieuThuTien.SoTien) AS TienDaThu,
 	ChungTuBanHang.SoChungTu
 from KhachHang
 join ChungTuBanHang on KhachHang.MaKhachHang=ChungTuBanHang.MaKhachHang
@@ -279,6 +279,27 @@ group by KhachHang.MaKhachHang,KhachHang.TenKhachHang,ChungTuBanHang.SoChungTu
 order by sum(PhieuThuTien.SoTien) desc;
 
 --5.29
+/*số chứng từ, ngày lập chứng từ, tên khách hàng và tổng số tiền hàng */
+SELECT TABLE_Tien_Hang.SOCT, TABLE_Tien_Hang.NgayLapChungTu, TenKhachHang, 
+		Tien_Hang
+FROM
+	(SELECT  C.SoChungTu SOCT, NgayLapChungTu, MaKhachHang, SUM(Soluong*Dongia) Tien_Hang
+	 FROM ChungTuBanHang C LEFT JOIN ChiTietChungTu T
+			ON C.SoChungTu = T.SoChungTu
+	GROUP BY C.SoChungTu, NgayLapChungTu, MaKhachHang) AS TABLE_Tien_Hang
+INNER JOIN
+	(SELECT  C.SoChungTu SOCT, NgayLapChungTu, SUM(SoTien) Tien_Da_Thu
+	FROM ChungTuBanHang C LEFT JOIN PhieuThuTien P
+			ON C.SoChungTu = P.SoChungTu
+	GROUP BY C.SoChungTu, NgayLapChungTu) AS TABLE_Da_Thu
+ON TABLE_Tien_Hang.SOCT = TABLE_Da_Thu.SOCT
+LEFT JOIN KhachHang K ON TABLE_Tien_Hang.MaKhachHang = K.MaKhachHang
+WHERE Tien_Hang > Tien_Da_Thu
+
+
+
+
+
 
 SELECT 
     CTBH.SoChungTu,
@@ -376,3 +397,22 @@ GROUP BY
 
 
 ;
+select tb.SoChungTu, khachhang.MaKhachHang, khachhang.TenKhachHang,
+tb.[Tổng thu], tb.[Đã thu], tb.[Còn lại]
+from
+(select tb1.SoChungTu,  tb1.[Tổng thu], tb2.[Đã thu],
+tb1.[Tổng thu] - tb2.[Đã thu] as [Còn lại]
+from 
+(select sochungtu, sum(dongia*soluong) as [Tổng thu]
+from ChiTietChungTu
+group by sochungtu) as tb1
+inner join 
+(select sochungtu,  sum(sotien) as [Đã thu]
+from PhieuThuTien
+group by SoChungTu) as tb2
+on tb1.SoChungTu = tb2.SoChungTu) as tb
+full outer join ChungTuBanHang
+on tb.SoChungTu = ChungTuBanHang.SoChungTu
+full outer join KhachHang
+on ChungTuBanHang.MaKhachHang = khachhang.MaKhachHang
+-- where tb.[Còn lại] > 0
